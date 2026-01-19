@@ -13,7 +13,7 @@ A Chrome extension that scans Appian SAIL code for accessibility issues based on
 ## Installation
 
 ### Option 1: Install from Chrome Web Store
-*Extension is pending InfoSec approval before being available in the Chrome Web Store*
+*Not currently available*
 
 ### Option 2: Install in Opera (For Testing)
 
