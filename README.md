@@ -9,14 +9,48 @@ A Chrome extension that scans Appian SAIL code for accessibility issues based on
 - 🎯 WCAG-based severity levels (Level A errors, Level AA warnings)
 - 📊 Detailed issue reports with line numbers and code snippets
 - 🔄 Automatic daily updates of Aurora accessibility rules
-- 💡 Links to Aurora documentation for each issue
 
 ## Installation
 
-### Option 1: Install from Chrome Web Store (Coming Soon)
-*Extension will be available in the Chrome Web Store*
+### Option 1: Install from Chrome Web Store
+*Extension is pending InfoSec approval before being available in the Chrome Web Store*
 
-### Option 2: Install as Unpacked Extension (Developer Mode)
+### Option 2: Install in Opera (For Testing)
+
+Since the extension requires InfoSec approval before Chrome Web Store publication, you can test it in Opera browser:
+
+1. **Download Opera Browser**
+   - Download from [opera.com](https://www.opera.com/) if you don't have it installed
+
+2. **Download the Extension**
+   - Clone this repository or download as ZIP:
+     ```bash
+     git clone https://github.com/CDanzi/sail-a11y-checker.git
+     ```
+   - If downloaded as ZIP, extract the files to a folder
+
+3. **Open Opera Extensions Page**
+   - Open Opera and navigate to `opera://extensions/`
+   - Or click the Opera menu → Extensions → Extensions
+
+4. **Enable Developer Mode**
+   - Toggle the "Developer mode" switch in the top-right corner
+
+5. **Load the Extension**
+   - Click "Load unpacked"
+   - Select the folder containing the extension files (where `manifest.json` is located)
+   - The extension should now appear in your extensions list
+
+6. **Pin the Extension (Optional)**
+   - Click the extensions icon in Opera's toolbar
+   - Find "Appian A11y Checker" and click the pin icon
+   - The extension icon will now appear in your toolbar
+
+### Option 3: Install as Unpacked Extension in Chrome (Developer Mode)
+
+### Option 3: Install as Unpacked Extension in Chrome (Developer Mode)
+
+For Chrome users with appropriate permissions:
 
 1. **Download the Extension**
    - Clone this repository or download as ZIP:
