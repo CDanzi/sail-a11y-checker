@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Appian A11y Checker",
+  "version": "1.0.0",
+  "description": "Scans Appian SAIL code for accessibility issues",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabs",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://*.appiancloud.com/*",
+    "https://*.appian.com/*",
+    "http://*.appiancloud.com/*",
+    "http://*.appian.com/*",
+    "https://appian-design.github.io/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Open Appian A11y Checker"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.appiancloud.com/*",
+        "https://*.appian.com/*",
+        "http://*.appiancloud.com/*",
+        "http://*.appian.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
