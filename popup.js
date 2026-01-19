@@ -116,8 +116,8 @@ async function runScan() {
         <p class="scan-info">Scanned ${lineCount} lines of SAIL code</p>
         ${fallbackNotice}
         <div class="rescan-reminder">
-          <h4>Select All Code to Re-scan</h4>
-          <p>Select all SAIL code in the expression editor to ensure the scanner reads every line, then run the extension again.</p>
+          <h4>Refresh Selection to Re-Scan</h4>
+          <p>Select all SAIL code again in the expression editor to ensure the scanner reads every line, then run the extension again.</p>
         </div>
       </div>
     `;
