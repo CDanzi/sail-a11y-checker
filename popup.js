@@ -1,5 +1,10 @@
-// Track the results window
-let resultsWindowId = null;
+// Clear window ID from storage when closed
+chrome.windows.onRemoved.addListener(async (windowId) => {
+  const { resultsWindowId } = await chrome.storage.local.get('resultsWindowId');
+  if (windowId === resultsWindowId) {
+    await chrome.storage.local.remove('resultsWindowId');
+  }
+});
 
 async function ensureContentScript(tabId) {
   try {
@@ -130,13 +135,13 @@ async function runScan() {
     `;
     
     // Close existing results window if open
+    const { resultsWindowId } = await chrome.storage.local.get('resultsWindowId');
     if (resultsWindowId) {
       try {
         await chrome.windows.remove(resultsWindowId);
       } catch (e) {
         // Window already closed
       }
-      resultsWindowId = null;
     }
     
     // Open results in a new window
@@ -149,14 +154,8 @@ async function runScan() {
       top: 100
     });
     
-    resultsWindowId = resultsWindow.id;
-    
-    // Clear tracking when window is closed
-    chrome.windows.onRemoved.addListener((windowId) => {
-      if (windowId === resultsWindowId) {
-        resultsWindowId = null;
-      }
-    });
+    // Store window ID
+    await chrome.storage.local.set({ resultsWindowId: resultsWindow.id });
   });
 }
 
