@@ -57,7 +57,7 @@ async function runScan() {
   // Load rules from storage
   const { auroraRules } = await chrome.storage.local.get('auroraRules');
   
-  chrome.tabs.sendMessage(tab.id, { action: 'scanSAIL', rules: auroraRules }, (response) => {
+  chrome.tabs.sendMessage(tab.id, { action: 'scanSAIL', rules: auroraRules }, async (response) => {
     if (chrome.runtime.lastError) {
       resultsDiv.innerHTML = `
         <p class="error">
@@ -87,7 +87,7 @@ async function runScan() {
     const { issues, codeLength, lineCount, usedFallbackRules } = response;
     
     // Store results with tab info
-    chrome.storage.local.set({ 
+    await chrome.storage.local.set({ 
       scanResults: { issues, codeLength, lineCount, usedFallbackRules },
       scannedTabUrl: tab.url
     });
