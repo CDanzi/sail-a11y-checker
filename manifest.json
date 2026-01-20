@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Appian A11y Checker",
+  "name": "SAIL A11y Checker",
   "version": "1.0.0",
   "description": "Scans Appian SAIL code for accessibility issues",
   "permissions": [
@@ -19,7 +19,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Open Appian A11y Checker"
+    "default_title": "Open SAIL A11y Checker"
   },
   "content_scripts": [
     {

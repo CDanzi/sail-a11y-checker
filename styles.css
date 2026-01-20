@@ -83,7 +83,7 @@ h1 {
 .loading {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   color: #666;
   font-size: 15px;
 }
