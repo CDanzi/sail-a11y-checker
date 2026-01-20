@@ -1,3 +1,6 @@
+// Track the results window
+let resultsWindowId = null;
+
 async function ensureContentScript(tabId) {
   try {
     await chrome.tabs.sendMessage(tabId, { action: 'ping' });
@@ -126,14 +129,33 @@ async function runScan() {
       </div>
     `;
     
-    // Automatically open results in a new window
-    chrome.windows.create({
+    // Close existing results window if open
+    if (resultsWindowId) {
+      try {
+        await chrome.windows.remove(resultsWindowId);
+      } catch (e) {
+        // Window already closed
+      }
+      resultsWindowId = null;
+    }
+    
+    // Open results in a new window
+    const resultsWindow = await chrome.windows.create({
       url: chrome.runtime.getURL('results.html'),
       type: 'popup',
       width: 500,
       height: 600,
       left: 100,
       top: 100
+    });
+    
+    resultsWindowId = resultsWindow.id;
+    
+    // Clear tracking when window is closed
+    chrome.windows.onRemoved.addListener((windowId) => {
+      if (windowId === resultsWindowId) {
+        resultsWindowId = null;
+      }
     });
   });
 }
