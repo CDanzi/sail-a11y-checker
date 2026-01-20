@@ -638,6 +638,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // Log when content script loads
-console.log('✅ Appian A11y Checker content script loaded');
+console.log('✅ SAIL A11y Checker content script loaded');
 console.log('Current URL:', window.location.href);
 console.log('CodeMirror elements found:', document.querySelectorAll('.CodeMirror').length);
