@@ -3,6 +3,11 @@
   "name": "SAIL A11y Checker",
   "version": "1.0.0",
   "description": "Scans Appian SAIL code for accessibility issues",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": [
     "activeTab",
     "scripting",
@@ -19,7 +24,12 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Open SAIL A11y Checker"
+    "default_title": "Open SAIL A11y Checker",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "content_scripts": [
     {
