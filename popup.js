@@ -20,7 +20,7 @@ async function ensureContentScript(tabId) {
 
 async function runScan() {
   const resultsDiv = document.getElementById('results');
-  resultsDiv.innerHTML = '<p class="loading">Scanning SAIL code...</p>';
+  resultsDiv.innerHTML = '<div class="loading"><img src="icons/loading.gif" alt="Loading" style="width: 24px; height: 24px; margin-right: 8px;"><span>Scanning SAIL code...</span></div>';
   
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   
@@ -103,14 +103,18 @@ async function runScan() {
         <h3>Scan Complete</h3>
         <div class="summary-stats">
           <div class="stat-item ${errorCount > 0 ? 'has-errors' : ''}">
-            <span class="stat-icon">🔴</span>
-            <span class="stat-value">${errorCount}</span>
-            <span class="stat-label">error${errorCount !== 1 ? 's' : ''}</span>
+            <div class="stat-content">
+              <span class="stat-value">${errorCount}</span>
+              <span class="stat-label">error${errorCount !== 1 ? 's' : ''}</span>
+            </div>
+            <img src="icons/error-icon.svg" alt="Error" class="stat-icon" style="filter: invert(27%) sepia(93%) saturate(4447%) hue-rotate(352deg) brightness(95%) contrast(92%);">
           </div>
           <div class="stat-item ${warningCount > 0 ? 'has-warnings' : ''}">
-            <span class="stat-icon">⚠️</span>
-            <span class="stat-value">${warningCount}</span>
-            <span class="stat-label">warning${warningCount !== 1 ? 's' : ''}</span>
+            <div class="stat-content">
+              <span class="stat-value">${warningCount}</span>
+              <span class="stat-label">warning${warningCount !== 1 ? 's' : ''}</span>
+            </div>
+            <img src="icons/warning-icon.svg" alt="Warning" class="stat-icon" style="filter: invert(48%) sepia(79%) saturate(2476%) hue-rotate(6deg) brightness(98%) contrast(97%);">
           </div>
         </div>
         <p class="scan-info">Scanned ${lineCount} lines of SAIL code</p>

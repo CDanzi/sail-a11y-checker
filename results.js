@@ -37,8 +37,7 @@ chrome.storage.local.get(['scanResults'], (data) => {
   let html = `
     <div class="summary">
       <h3>Found ${issues.length} Issue${issues.length > 1 ? 's' : ''}</h3>
-      <p>${errorCount} error${errorCount !== 1 ? 's' : ''}, ${warningCount} warning${warningCount !== 1 ? 's' : ''}</p>
-      <p class="scan-info">Scanned ${lineCount} lines</p>
+      <p class="scan-info">Scanned ${lineCount} lines and found ${errorCount} error${errorCount !== 1 ? 's' : ''} and ${warningCount} warning${warningCount !== 1 ? 's' : ''}</p>
     </div>
     <div class="issues-list">
   `;
