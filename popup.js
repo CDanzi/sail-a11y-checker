@@ -92,10 +92,14 @@ async function runScan() {
     const { issues, codeLength, lineCount, usedFallbackRules } = response;
     
     // Store results with tab info and timestamp
+    const now = new Date();
+    const timestamp = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + 
+                      now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+    
     await chrome.storage.local.set({ 
       scanResults: { issues, codeLength, lineCount, usedFallbackRules },
       scannedTabUrl: tab.url,
-      scanTimestamp: new Date().toLocaleString()
+      scanTimestamp: timestamp
     });
     
     const issueCount = issues.length;

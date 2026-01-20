@@ -14,8 +14,8 @@ chrome.storage.local.get(['scanResults', 'scanTimestamp'], (data) => {
     resultsDiv.innerHTML = `
       <div class="success">
         <h3>✓ No Issues Found</h3>
-        <p>Scanned ${lineCount} lines (${codeLength} characters) of SAIL code.</p>
-        <p class="scan-info">Scanned at ${timestamp}</p>
+        <p class="scan-info">Scanned ${lineCount} lines (${codeLength} characters) of SAIL code.</p>
+        <p class="scan-info" style="font-size: 11px; color: #999; margin-top: 4px;">${timestamp}</p>
         <p class="aurora-link">
           <a href="https://appian-design.github.io/aurora/accessibility/checklist/" target="_blank">
             View Aurora A11y Checklist →
@@ -40,7 +40,7 @@ chrome.storage.local.get(['scanResults', 'scanTimestamp'], (data) => {
     <div class="summary">
       <h3>Found ${issues.length} Issue${issues.length > 1 ? 's' : ''}</h3>
       <p class="scan-info">Scanned ${lineCount} lines and found ${errorCount} error${errorCount !== 1 ? 's' : ''} and ${warningCount} warning${warningCount !== 1 ? 's' : ''}</p>
-      <p class="scan-info" style="font-size: 11px; color: #999; margin-top: 4px;">Scanned at ${timestamp}</p>
+      <p class="scan-info" style="font-size: 11px; color: #999; margin-top: 4px;">${timestamp}</p>
     </div>
     <div class="issues-list">
   `;
