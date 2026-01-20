@@ -91,10 +91,11 @@ async function runScan() {
     
     const { issues, codeLength, lineCount, usedFallbackRules } = response;
     
-    // Store results with tab info
+    // Store results with tab info and timestamp
     await chrome.storage.local.set({ 
       scanResults: { issues, codeLength, lineCount, usedFallbackRules },
-      scannedTabUrl: tab.url
+      scannedTabUrl: tab.url,
+      scanTimestamp: new Date().toLocaleString()
     });
     
     const issueCount = issues.length;
@@ -148,7 +149,7 @@ async function runScan() {
     const resultsWindow = await chrome.windows.create({
       url: chrome.runtime.getURL('results.html'),
       type: 'popup',
-      width: 500,
+      width: 360,
       height: 600,
       left: 100,
       top: 100
