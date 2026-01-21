@@ -640,103 +640,118 @@ class AuroraRuleParser {
     const checks = [];
     const sailTest = rule.sailTest?.toLowerCase() || '';
     const category = rule.category?.toLowerCase() || '';
+    const criteria = rule.criteria?.toLowerCase() || '';
     
-    // Rule 1: Check for label parameter on form inputs
-    if (sailTest.includes('inspect the label parameter') || 
-        sailTest.includes('label parameter for a value') ||
-        sailTest.includes('label must not be null')) {
+    // Rule 1: Check for label parameter on form inputs (SPECIFIC to form inputs only)
+    if (category === 'form inputs' && 
+        (sailTest.includes('inspect the label parameter') || sailTest.includes('label must not be null')) &&
+        !sailTest.includes('checkbox') && !sailTest.includes('radio') && 
+        !sailTest.includes('grid') && !sailTest.includes('visible label') &&
+        !sailTest.includes('same string')) {
       checks.push(this.createLabelCheck(rule));
     }
     
-    // Rule 2: Check for choice labels on checkbox/radio
-    if (sailTest.includes('choicelabels') || sailTest.includes('choice labels')) {
+    // Rule 2: Check for choice labels on checkbox/radio (SPECIFIC)
+    if (category === 'form inputs' && 
+        (sailTest.includes('choicelabels') || criteria.includes('choicelabels')) &&
+        (criteria.includes('checkbox') || criteria.includes('radio'))) {
       checks.push(this.createChoiceLabelsCheck(rule));
     }
     
-    // Rule 3: Check for group labels on multiple choice fields
-    if (category.includes('form') && sailTest.includes('group') && sailTest.includes('label')) {
+    // Rule 3: Check for group labels on multiple choice fields (SPECIFIC)
+    if (category === 'form inputs' && 
+        (criteria.includes('checkbox') || criteria.includes('radio')) &&
+        criteria.includes('more than one') && sailTest.includes('label parameter')) {
       checks.push(this.createGroupLabelCheck(rule));
     }
     
-    // Rule 4: Check for alt text on images/icons
-    if ((sailTest.includes('alttext') || sailTest.includes('alt text')) && 
-        (category.includes('icon') || category.includes('image'))) {
+    // Rule 4: Check for alt text on images (SPECIFIC)
+    if (category === 'images' && (sailTest.includes('alttext') || sailTest.includes('alt text'))) {
       checks.push(this.createAltTextCheck(rule));
     }
     
-    // Rule 5: Check for grid labels
-    if (category.includes('grid') && sailTest.includes('label') && !sailTest.includes('column')) {
+    // Rule 5: Check for alt text on icons (SPECIFIC)
+    if (category === 'icons' && (sailTest.includes('alttext') || sailTest.includes('alt text'))) {
+      checks.push(this.createAltTextCheck(rule));
+    }
+    
+    // Rule 6: Check for grid labels (SPECIFIC - must mention "grid")
+    if (category === 'grids' && criteria.includes('grid must have a label') && 
+        !criteria.includes('column')) {
       checks.push(this.createGridLabelCheck(rule));
     }
     
-    // Rule 6: Check for grid column headers
-    if (category.includes('grid') && (sailTest.includes('column') || sailTest.includes('header'))) {
+    // Rule 7: Check for grid column headers (SPECIFIC - must mention "column")
+    if (category === 'grids' && criteria.includes('column') && 
+        (sailTest.includes('column') || criteria.includes('header'))) {
       checks.push(this.createGridColumnCheck(rule));
     }
     
-    // Rule 7: Check for semantic headings
-    if (category.includes('heading') || sailTest.includes('heading tag')) {
+    // Rule 8: Check for semantic headings (SPECIFIC)
+    if (category === 'headings' && criteria.includes('heading') && 
+        !criteria.includes('section') && !criteria.includes('box')) {
       checks.push(this.createHeadingCheck(rule));
     }
     
-    // Rule 8: Check for section heading tags
-    if (category.includes('section') && sailTest.includes('heading')) {
+    // Rule 9: Check for section heading tags (SPECIFIC)
+    if (category === 'sections' && sailTest.includes('heading')) {
       checks.push(this.createSectionHeadingCheck(rule));
     }
     
-    // Rule 9: Check for progress bar labels
-    if (sailTest.includes('progress') || category.includes('progress')) {
+    // Rule 10: Check for progress bar labels (SPECIFIC)
+    if (category === 'progress indicators' || criteria.includes('progress')) {
       checks.push(this.createProgressBarCheck(rule));
     }
     
-    // Rule 10: Check for file upload labels
-    if (sailTest.includes('file upload') || category.includes('file')) {
+    // Rule 11: Check for file upload labels (SPECIFIC)
+    if (category === 'form inputs' && criteria.includes('file upload')) {
       checks.push(this.createFileUploadCheck(rule));
     }
     
-    // Rule 11: Check for card accessibility text
-    if (category.includes('card') && sailTest.includes('accessibility')) {
+    // Rule 12: Check for card accessibility text (SPECIFIC)
+    if (category === 'cards' && sailTest.includes('accessibility')) {
       checks.push(this.createCardAccessibilityCheck(rule));
     }
     
-    // Rule 12: Check for prohibited components
-    if (sailTest.includes('must not') || sailTest.includes('prohibited')) {
+    // Rule 13: Check for prohibited components (SPECIFIC)
+    if (criteria.includes('datetimefield') && criteria.includes('must not')) {
       checks.push(this.createProhibitedComponentCheck(rule));
     }
     
-    // NEW Rule 13: Check for duplicate control context
-    if (sailTest.includes('duplicate') || sailTest.includes('repeated') || 
-        (sailTest.includes('accessibilitytext') && sailTest.includes('context'))) {
+    // Rule 14: Check for duplicate control context (SPECIFIC)
+    if (category === 'form inputs' && criteria.includes('duplicated controls') && 
+        sailTest.includes('accessibilitytext')) {
       checks.push(this.createDuplicateControlCheck(rule));
     }
     
-    // NEW Rule 14: Check for required field indicators
-    if (sailTest.includes('required') && category.includes('form')) {
+    // Rule 15: Check for required field indicators (SPECIFIC)
+    if (category === 'form inputs' && criteria.includes('required') && 
+        !criteria.includes('duplicate')) {
       checks.push(this.createRequiredFieldCheck(rule));
     }
     
-    // NEW Rule 15: Check for link labels
-    if (category.includes('link') && sailTest.includes('label')) {
+    // Rule 16: Check for link labels (SPECIFIC)
+    if (category === 'links' && sailTest.includes('label')) {
       checks.push(this.createLinkLabelCheck(rule));
     }
     
-    // NEW Rule 16: Check for button labels
-    if (category.includes('button') || sailTest.includes('button')) {
+    // Rule 17: Check for button labels (SPECIFIC)
+    if (criteria.includes('button') && sailTest.includes('label')) {
       checks.push(this.createButtonLabelCheck(rule));
     }
     
-    // NEW Rule 17: Check for chart accessibility
-    if (category.includes('chart') || sailTest.includes('chart')) {
+    // Rule 18: Check for chart accessibility (SPECIFIC)
+    if (category === 'charts' || criteria.includes('chart')) {
       checks.push(this.createChartAccessibilityCheck(rule));
     }
     
-    // NEW Rule 18: Check for picker field labels
-    if (sailTest.includes('picker') || category.includes('picker')) {
+    // Rule 19: Check for picker field labels (SPECIFIC)
+    if (criteria.includes('picker') && sailTest.includes('label')) {
       checks.push(this.createPickerFieldCheck(rule));
     }
     
-    // NEW Rule 19: Check for collapsible section headings
-    if (sailTest.includes('collapsible') || (category.includes('section') && sailTest.includes('iscollapsible'))) {
+    // Rule 20: Check for collapsible section headings (SPECIFIC)
+    if (category === 'sections' && criteria.includes('collapsible')) {
       checks.push(this.createCollapsibleSectionCheck(rule));
     }
     
