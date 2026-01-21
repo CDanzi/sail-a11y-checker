@@ -704,6 +704,42 @@ class AuroraRuleParser {
       checks.push(this.createProhibitedComponentCheck(rule));
     }
     
+    // NEW Rule 13: Check for duplicate control context
+    if (sailTest.includes('duplicate') || sailTest.includes('repeated') || 
+        (sailTest.includes('accessibilitytext') && sailTest.includes('context'))) {
+      checks.push(this.createDuplicateControlCheck(rule));
+    }
+    
+    // NEW Rule 14: Check for required field indicators
+    if (sailTest.includes('required') && category.includes('form')) {
+      checks.push(this.createRequiredFieldCheck(rule));
+    }
+    
+    // NEW Rule 15: Check for link labels
+    if (category.includes('link') && sailTest.includes('label')) {
+      checks.push(this.createLinkLabelCheck(rule));
+    }
+    
+    // NEW Rule 16: Check for button labels
+    if (category.includes('button') || sailTest.includes('button')) {
+      checks.push(this.createButtonLabelCheck(rule));
+    }
+    
+    // NEW Rule 17: Check for chart accessibility
+    if (category.includes('chart') || sailTest.includes('chart')) {
+      checks.push(this.createChartAccessibilityCheck(rule));
+    }
+    
+    // NEW Rule 18: Check for picker field labels
+    if (sailTest.includes('picker') || category.includes('picker')) {
+      checks.push(this.createPickerFieldCheck(rule));
+    }
+    
+    // NEW Rule 19: Check for collapsible section headings
+    if (sailTest.includes('collapsible') || (category.includes('section') && sailTest.includes('iscollapsible'))) {
+      checks.push(this.createCollapsibleSectionCheck(rule));
+    }
+    
     return checks;
   }
 
@@ -1072,6 +1108,241 @@ class AuroraRuleParser {
             wcagLevel: 'A',
             wcagCriteria: '4.1.2',
             learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createDuplicateControlCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const formPattern = /a!(textField|integerField|decimalField|dropdownField)\s*\([^)]*\)/g;
+        const matches = [...sailCode.matchAll(formPattern)];
+        
+        // Group by label to find duplicates
+        const labelGroups = {};
+        matches.forEach(match => {
+          const labelMatch = match[0].match(/label\s*:\s*"([^"]*)"/);
+          if (labelMatch) {
+            const label = labelMatch[1];
+            if (!labelGroups[label]) labelGroups[label] = [];
+            labelGroups[label].push(match);
+          }
+        });
+        
+        // Check duplicates for accessibilityText
+        Object.entries(labelGroups).forEach(([label, group]) => {
+          if (group.length > 1) {
+            group.forEach(match => {
+              if (!match[0].includes('accessibilityText:')) {
+                const line = sailCode.substring(0, match.index).split('\n').length;
+                issues.push({
+                  rule: 'Duplicate control missing accessibility text',
+                  message: rule.criteria,
+                  code: match[0].substring(0, 80),
+                  line: line,
+                  severity: 'error',
+                  wcagLevel: 'A',
+                  wcagCriteria: '2.4.6',
+                  learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+                });
+              }
+            });
+          }
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createRequiredFieldCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const formPatterns = [
+          { name: 'textField', pattern: /a!textField\s*\([^)]*\)/g },
+          { name: 'dropdownField', pattern: /a!dropdownField\s*\([^)]*\)/g },
+        ];
+        
+        formPatterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            if (match[0].includes('required:') && !match[0].includes('required: true') && 
+                !match[0].includes('required: false')) {
+              const line = sailCode.substring(0, match.index).split('\n').length;
+              issues.push({
+                rule: `${name} missing required parameter`,
+                message: rule.criteria,
+                code: match[0].substring(0, 80),
+                line: line,
+                severity: 'warning',
+                wcagLevel: 'AA',
+                wcagCriteria: '3.3.2',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createLinkLabelCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const pattern = /a!linkField\s*\([^)]*\)/g;
+        const matches = [...sailCode.matchAll(pattern)];
+        
+        matches.forEach(match => {
+          if (!match[0].includes('label:') && !match[0].includes('accessibilityText:')) {
+            const line = sailCode.substring(0, match.index).split('\n').length;
+            issues.push({
+              rule: 'Link missing label',
+              message: rule.criteria,
+              code: match[0].substring(0, 80),
+              line: line,
+              severity: 'error',
+              wcagLevel: 'A',
+              wcagCriteria: '2.4.4, 4.1.2',
+              learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+            });
+          }
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createButtonLabelCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const patterns = [
+          { name: 'buttonWidget', pattern: /a!buttonWidget\s*\([^)]*\)/g },
+          { name: 'buttonArrayLayout', pattern: /a!buttonArrayLayout\s*\([^)]*\)/g },
+        ];
+        
+        patterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            if (!match[0].includes('label:')) {
+              const line = sailCode.substring(0, match.index).split('\n').length;
+              issues.push({
+                rule: `${name} missing label`,
+                message: rule.criteria,
+                code: match[0].substring(0, 80),
+                line: line,
+                severity: 'error',
+                wcagLevel: 'A',
+                wcagCriteria: '4.1.2',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createChartAccessibilityCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const patterns = [
+          { name: 'barChartField', pattern: /a!barChartField\s*\([^)]*\)/g },
+          { name: 'columnChartField', pattern: /a!columnChartField\s*\([^)]*\)/g },
+          { name: 'lineChartField', pattern: /a!lineChartField\s*\([^)]*\)/g },
+          { name: 'pieChartField', pattern: /a!pieChartField\s*\([^)]*\)/g },
+        ];
+        
+        patterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            if (!match[0].includes('accessibilityText:')) {
+              const line = sailCode.substring(0, match.index).split('\n').length;
+              issues.push({
+                rule: `${name} missing accessibility text`,
+                message: rule.criteria,
+                code: match[0].substring(0, 80),
+                line: line,
+                severity: 'error',
+                wcagLevel: 'A',
+                wcagCriteria: '1.1.1',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createPickerFieldCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const pattern = /a!pickerField\s*\([^)]*\)/g;
+        const matches = [...sailCode.matchAll(pattern)];
+        
+        matches.forEach(match => {
+          if (!match[0].includes('label:')) {
+            const line = sailCode.substring(0, match.index).split('\n').length;
+            issues.push({
+              rule: 'Picker field missing label',
+              message: rule.criteria,
+              code: match[0].substring(0, 80),
+              line: line,
+              severity: 'error',
+              wcagLevel: 'A',
+              wcagCriteria: '1.3.1, 4.1.2',
+              learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+            });
+          }
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createCollapsibleSectionCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const patterns = [
+          { name: 'sectionLayout', pattern: /a!sectionLayout\s*\([^)]*isCollapsible\s*:\s*true[^)]*\)/g },
+          { name: 'boxLayout', pattern: /a!boxLayout\s*\([^)]*isCollapsible\s*:\s*true[^)]*\)/g },
+        ];
+        
+        patterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            if (!match[0].includes('headingTag:')) {
+              const line = sailCode.substring(0, match.index).split('\n').length;
+              issues.push({
+                rule: `Collapsible ${name} missing heading tag`,
+                message: rule.criteria,
+                code: match[0].substring(0, 80),
+                line: line,
+                severity: 'warning',
+                wcagLevel: 'AA',
+                wcagCriteria: '1.3.1',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
           });
         });
         
