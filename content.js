@@ -618,13 +618,20 @@ class AuroraRuleParser {
   generateChecks(sailCode) {
     const issues = [];
     
+    console.log(`🔍 Aurora Parser: Processing ${this.rules.length} rules...`);
+    
     this.rules.forEach(rule => {
       const checks = this.parseRuleToChecks(rule);
       checks.forEach(check => {
         const violations = check.execute(sailCode);
+        if (violations.length > 0) {
+          console.log(`  ✓ Found ${violations.length} issues for: ${rule.category}`);
+        }
         issues.push(...violations);
       });
     });
+    
+    console.log(`🎯 Aurora Parser: Total ${issues.length} issues found`);
     
     return issues;
   }
