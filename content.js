@@ -79,6 +79,35 @@ function checkA11yIssues(sailCode, auroraRules = []) {
   const lines = sailCode.split('\n');
   let usedFallbackRules = false;
   
+  // Try to use Aurora rules first
+  if (auroraRules && auroraRules.length > 0) {
+    console.log(`✅ Using ${auroraRules.length} Aurora rules for dynamic checking`);
+    try {
+      // Load and use Aurora rule parser
+      const parser = new AuroraRuleParser(auroraRules);
+      issues = parser.generateChecks(sailCode);
+      console.log(`Found ${issues.length} issues using Aurora rules`);
+      return { issues, usedFallbackRules: false };
+    } catch (error) {
+      console.error('❌ Error using Aurora rules, falling back to hardcoded:', error);
+      usedFallbackRules = true;
+    }
+  } else {
+    console.log('⚠️ No Aurora rules available, using fallback checks');
+    usedFallbackRules = true;
+  }
+  
+  // Fallback to hardcoded rules
+  console.log('Using hardcoded fallback rules');
+  issues = runHardcodedChecks(sailCode, lines);
+  
+  return { issues, usedFallbackRules };
+}
+
+// Hardcoded fallback checks (original logic)
+function runHardcodedChecks(sailCode, lines) {
+  const issues = [];
+  
   const findLineNumber = (charIndex) => {
     let charCount = 0;
     for (let i = 0; i < lines.length; i++) {
@@ -577,7 +606,156 @@ function checkA11yIssues(sailCode, auroraRules = []) {
     });
   }
   
-  return { issues, usedFallbackRules };
+  return issues;
+}
+
+// Aurora Rule Parser class (inline for extension compatibility)
+class AuroraRuleParser {
+  constructor(auroraRules) {
+    this.rules = auroraRules || [];
+  }
+
+  generateChecks(sailCode) {
+    const issues = [];
+    
+    this.rules.forEach(rule => {
+      const checks = this.parseRuleToChecks(rule);
+      checks.forEach(check => {
+        const violations = check.execute(sailCode);
+        issues.push(...violations);
+      });
+    });
+    
+    return issues;
+  }
+
+  parseRuleToChecks(rule) {
+    const checks = [];
+    const sailTest = rule.sailTest?.toLowerCase() || '';
+    
+    // Rule: Check for label parameter
+    if (sailTest.includes('inspect the label parameter') || 
+        sailTest.includes('label parameter for a value') ||
+        sailTest.includes('label must not be null')) {
+      checks.push(this.createLabelCheck(rule));
+    }
+    
+    // Rule: Check for choice labels
+    if (sailTest.includes('choicelabels') || sailTest.includes('choice labels')) {
+      checks.push(this.createChoiceLabelsCheck(rule));
+    }
+    
+    // Rule: Check for alt text on images/icons
+    if ((sailTest.includes('alttext') || sailTest.includes('alt text')) && 
+        (rule.category.includes('Icon') || rule.category.includes('Image'))) {
+      checks.push(this.createAltTextCheck(rule));
+    }
+    
+    return checks;
+  }
+
+  createLabelCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const formPatterns = [
+          { name: 'textField', pattern: /a!textField\s*\([^)]*\)/g },
+          { name: 'integerField', pattern: /a!integerField\s*\([^)]*\)/g },
+          { name: 'decimalField', pattern: /a!decimalField\s*\([^)]*\)/g },
+          { name: 'dateField', pattern: /a!dateField\s*\([^)]*\)/g },
+          { name: 'dropdownField', pattern: /a!dropdownField\s*\([^)]*\)/g },
+          { name: 'paragraphField', pattern: /a!paragraphField\s*\([^)]*\)/g },
+        ];
+        
+        formPatterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            if (!match[0].includes('label:')) {
+              const line = sailCode.substring(0, match.index).split('\n').length;
+              issues.push({
+                rule: `Missing label on ${name}`,
+                message: rule.criteria,
+                code: match[0].substring(0, 80),
+                line: line,
+                severity: 'error',
+                wcagLevel: 'A',
+                wcagCriteria: '1.3.1, 4.1.2',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createChoiceLabelsCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const patterns = [
+          { name: 'checkboxField', pattern: /a!checkboxField\s*\([^)]*\)/g },
+          { name: 'radioButtonField', pattern: /a!radioButtonField\s*\([^)]*\)/g },
+        ];
+        
+        patterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            if (!match[0].includes('choiceLabels:')) {
+              const line = sailCode.substring(0, match.index).split('\n').length;
+              issues.push({
+                rule: `Missing choice labels on ${name}`,
+                message: rule.criteria,
+                code: match[0].substring(0, 80),
+                line: line,
+                severity: 'error',
+                wcagLevel: 'A',
+                wcagCriteria: '1.3.1, 4.1.2',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createAltTextCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const patterns = [
+          { name: 'image', pattern: /a!image\s*\([^)]*\)/g },
+          { name: 'richTextIcon', pattern: /a!richTextIcon\s*\([^)]*\)/g },
+        ];
+        
+        patterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            if (!match[0].includes('altText:')) {
+              const line = sailCode.substring(0, match.index).split('\n').length;
+              issues.push({
+                rule: `Missing alt text on ${name}`,
+                message: rule.criteria,
+                code: match[0].substring(0, 80),
+                line: line,
+                severity: 'error',
+                wcagLevel: 'A',
+                wcagCriteria: '1.1.1',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
 }
 
 // Listen for messages from popup
