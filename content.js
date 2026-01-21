@@ -661,7 +661,8 @@ class AuroraRuleParser {
     // Rule 3: Check for group labels on multiple choice fields (SPECIFIC)
     if (category === 'form inputs' && 
         (criteria.includes('checkbox') || criteria.includes('radio')) &&
-        criteria.includes('more than one') && sailTest.includes('label parameter')) {
+        (criteria.includes('more than one') || criteria.includes('group')) && 
+        sailTest.includes('label')) {
       checks.push(this.createGroupLabelCheck(rule));
     }
     
