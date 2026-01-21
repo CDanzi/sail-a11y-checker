@@ -958,15 +958,38 @@ class AuroraRuleParser {
     return {
       execute: (sailCode) => {
         const issues = [];
-        // Look for large/bold text that should be headings
-        const pattern = /a!richTextDisplayField\s*\([^)]*value\s*:\s*a!richTextItem\s*\([^)]*text\s*:\s*"[^"]*"[^)]*size\s*:\s*"(LARGE|MEDIUM_PLUS)"/g;
-        const matches = [...sailCode.matchAll(pattern)];
         
-        matches.forEach(match => {
+        // Pattern 1: richTextDisplayField with LARGE/MEDIUM_PLUS text
+        const displayFieldPattern = /a!richTextDisplayField\s*\([^)]*value\s*:\s*a!richTextItem\s*\([^)]*text\s*:\s*"[^"]*"[^)]*size\s*:\s*"(LARGE|MEDIUM_PLUS)"/g;
+        const displayMatches = [...sailCode.matchAll(displayFieldPattern)];
+        
+        displayMatches.forEach(match => {
           if (!match[0].includes('headingTag:')) {
             const line = sailCode.substring(0, match.index).split('\n').length;
             issues.push({
               rule: 'Large text missing heading tag',
+              message: rule.criteria,
+              code: match[0].substring(0, 80),
+              line: line,
+              severity: 'warning',
+              wcagLevel: 'AA',
+              wcagCriteria: '1.3.1',
+              learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+            });
+          }
+        });
+        
+        // Pattern 2: richTextItem with LARGE size (standalone)
+        const itemPattern = /a!richTextItem\s*\([^)]*size:\s*"LARGE"[^)]*\)/g;
+        const itemMatches = [...sailCode.matchAll(itemPattern)];
+        
+        itemMatches.forEach(match => {
+          // Check if this richTextItem is NOT already caught by displayFieldPattern
+          const beforeText = sailCode.substring(Math.max(0, match.index - 200), match.index);
+          if (!beforeText.includes('a!richTextDisplayField') || !match[0].includes('headingTag')) {
+            const line = sailCode.substring(0, match.index).split('\n').length;
+            issues.push({
+              rule: 'Large text should use semantic heading',
               message: rule.criteria,
               code: match[0].substring(0, 80),
               line: line,
