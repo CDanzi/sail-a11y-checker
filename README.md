@@ -48,8 +48,6 @@ Since the extension requires InfoSec approval before Chrome Web Store publicatio
 
 ### Option 3: Install as Unpacked Extension in Chrome (Developer Mode)
 
-### Option 3: Install as Unpacked Extension in Chrome (Developer Mode)
-
 For Chrome users with appropriate permissions:
 
 1. **Download the Extension**
