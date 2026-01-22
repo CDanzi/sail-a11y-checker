@@ -1370,18 +1370,12 @@ class AuroraRuleParser {
         patterns.forEach(({ name, pattern }) => {
           const matches = [...sailCode.matchAll(pattern)];
           matches.forEach(match => {
-            if (!match[0].includes('headingTag:')) {
-              const line = sailCode.substring(0, match.index).split('\n').length;
-              issues.push({
-                rule: `Collapsible ${name} missing heading tag`,
-                message: rule.criteria,
-                code: match[0].substring(0, 80),
-                line: line,
-                severity: 'warning',
-                wcagLevel: 'AA',
-                wcagCriteria: '1.3.1',
-                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
-              });
+            // Only flag if it has a label AND is collapsible AND missing headingTag
+            // This is more specific than the general section heading check
+            if (match[0].includes('label:') && !match[0].includes('headingTag:')) {
+              // Skip - this will be caught by createSectionHeadingCheck
+              // The collapsible check is redundant with the section heading check
+              return;
             }
           });
         });
