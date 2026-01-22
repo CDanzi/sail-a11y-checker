@@ -87,6 +87,21 @@ function checkA11yIssues(sailCode, auroraRules = []) {
       const parser = new AuroraRuleParser(auroraRules);
       issues = parser.generateChecks(sailCode);
       console.log(`Found ${issues.length} issues using Aurora rules`);
+      
+      // Supplement with hardcoded checks for multi-line edge cases
+      const supplementalIssues = runSupplementalChecks(sailCode, lines);
+      console.log(`Found ${supplementalIssues.length} additional issues from supplemental checks`);
+      
+      // Merge and deduplicate
+      supplementalIssues.forEach(newIssue => {
+        const isDuplicate = issues.some(existing => 
+          existing.line === newIssue.line && existing.rule === newIssue.rule
+        );
+        if (!isDuplicate) {
+          issues.push(newIssue);
+        }
+      });
+      
       return { issues, usedFallbackRules: false };
     } catch (error) {
       console.error('❌ Error using Aurora rules, falling back to hardcoded:', error);
@@ -102,6 +117,106 @@ function checkA11yIssues(sailCode, auroraRules = []) {
   issues = runHardcodedChecks(sailCode, lines);
   
   return { issues, usedFallbackRules };
+}
+
+// Supplemental checks for edge cases Aurora parser misses
+function runSupplementalChecks(sailCode, lines) {
+  const issues = [];
+  
+  // Check for imageField/image missing altText (multi-line)
+  lines.forEach((line, idx) => {
+    if (line.trim().match(/^a!image(Field)?\s*\(/)) {
+      let hasAltText = false;
+      let depth = 0;
+      for (let i = idx; i < Math.min(idx + 10, lines.length); i++) {
+        const l = lines[i];
+        depth += (l.match(/\(/g) || []).length - (l.match(/\)/g) || []).length;
+        if (l.includes('altText:')) hasAltText = true;
+        if (depth <= 0 && i > idx) break;
+      }
+      if (!hasAltText) {
+        issues.push({
+          rule: 'Missing alt text on image',
+          message: 'Images and icons MUST have alternative text set via the altText parameter.',
+          code: line.trim().substring(0, 80),
+          line: idx + 1,
+          severity: 'error',
+          wcagLevel: 'A',
+          wcagCriteria: '1.1.1'
+        });
+      }
+    }
+  });
+  
+  // Check for fileUploadField missing label (multi-line)
+  lines.forEach((line, idx) => {
+    if (line.trim().match(/^a!fileUploadField\s*\(/)) {
+      let hasLabel = false;
+      let depth = 0;
+      for (let i = idx; i < Math.min(idx + 10, lines.length); i++) {
+        const l = lines[i];
+        depth += (l.match(/\(/g) || []).length - (l.match(/\)/g) || []).length;
+        if (l.includes('label:')) hasLabel = true;
+        if (depth <= 0 && i > idx) break;
+      }
+      if (!hasLabel) {
+        issues.push({
+          rule: 'File upload missing label',
+          message: 'Every file upload field MUST have a label parameter.',
+          code: line.trim().substring(0, 80),
+          line: idx + 1,
+          severity: 'error',
+          wcagLevel: 'A',
+          wcagCriteria: '1.3.1, 4.1.2'
+        });
+      }
+    }
+  });
+  
+  // Check for section/box layouts missing headingTag (multi-line)
+  lines.forEach((line, idx) => {
+    if (line.trim().match(/^a!(section|box)Layout\s*\(/)) {
+      const layoutType = line.includes('section') ? 'sectionLayout' : 'boxLayout';
+      let hasLabel = false;
+      let hasHeadingTag = false;
+      let depth = 0;
+      for (let i = idx; i < Math.min(idx + 15, lines.length); i++) {
+        const l = lines[i];
+        depth += (l.match(/\(/g) || []).length - (l.match(/\)/g) || []).length;
+        if (l.includes('label:')) hasLabel = true;
+        if (l.includes('headingTag:') || l.includes('labelHeadingTag:')) hasHeadingTag = true;
+        if (depth <= 0 && i > idx) break;
+      }
+      if (hasLabel && !hasHeadingTag) {
+        issues.push({
+          rule: `${layoutType} missing heading tag`,
+          message: 'Sections with labels MUST have a headingTag parameter set.',
+          code: line.trim().substring(0, 80),
+          line: idx + 1,
+          severity: 'warning',
+          wcagLevel: 'AA',
+          wcagCriteria: '1.3.1'
+        });
+      }
+    }
+  });
+  
+  // Check for prohibited dateTimeField
+  lines.forEach((line, idx) => {
+    if (line.includes('a!dateTimeField(')) {
+      issues.push({
+        rule: 'Prohibited component: dateTimeField',
+        message: 'dateTimeField is not accessible and should not be used.',
+        code: line.trim().substring(0, 80),
+        line: idx + 1,
+        severity: 'error',
+        wcagLevel: 'A',
+        wcagCriteria: '4.1.2'
+      });
+    }
+  });
+  
+  return issues;
 }
 
 // Hardcoded fallback checks (original logic)
