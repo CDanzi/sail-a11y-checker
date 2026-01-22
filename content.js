@@ -683,9 +683,9 @@ class AuroraRuleParser {
       checks.push(this.createGridLabelCheck(rule));
     }
     
-    // Rule 7: Check for grid column headers (SPECIFIC - must mention "column")
+    // Rule 7: Check for grid column headers (SPECIFIC - must mention "column" and NOT "spacing")
     if (category === 'grids' && criteria.includes('column') && 
-        (sailTest.includes('column') || criteria.includes('header'))) {
+        criteria.includes('header') && !criteria.includes('spacing')) {
       checks.push(this.createGridColumnCheck(rule));
     }
     
@@ -836,6 +836,7 @@ class AuroraRuleParser {
         const issues = [];
         const patterns = [
           { name: 'image', pattern: /a!image\s*\([^)]*\)/g },
+          { name: 'imageField', pattern: /a!imageField\s*\([^)]*\)/g },
           { name: 'richTextIcon', pattern: /a!richTextIcon\s*\([^)]*\)/g },
         ];
         
@@ -1013,8 +1014,8 @@ class AuroraRuleParser {
       execute: (sailCode) => {
         const issues = [];
         const patterns = [
-          { name: 'sectionLayout', pattern: /a!sectionLayout\s*\([^)]*\)/g },
-          { name: 'boxLayout', pattern: /a!boxLayout\s*\([^)]*\)/g },
+          { name: 'sectionLayout', pattern: /a!sectionLayout\s*\([\s\S]*?\n\s*\)/g },
+          { name: 'boxLayout', pattern: /a!boxLayout\s*\([\s\S]*?\n\s*\)/g },
         ];
         
         patterns.forEach(({ name, pattern }) => {
