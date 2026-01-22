@@ -715,8 +715,8 @@ class AuroraRuleParser {
       checks.push(this.createCardAccessibilityCheck(rule));
     }
     
-    // Rule 13: Check for prohibited components (SPECIFIC)
-    if (criteria.includes('datetimefield') && criteria.includes('must not')) {
+    // Rule 13: Check for prohibited components (SPECIFIC - case insensitive)
+    if (criteria.toLowerCase().includes('datetimefield') && criteria.toLowerCase().includes('must not')) {
       checks.push(this.createProhibitedComponentCheck(rule));
     }
     
@@ -834,27 +834,33 @@ class AuroraRuleParser {
     return {
       execute: (sailCode) => {
         const issues = [];
-        const patterns = [
-          { name: 'image', pattern: /a!image\s*\([^)]*\)/g },
-          { name: 'imageField', pattern: /a!imageField\s*\([^)]*\)/g },
-          { name: 'richTextIcon', pattern: /a!richTextIcon\s*\([^)]*\)/g },
-        ];
+        const lines = sailCode.split('\n');
         
-        patterns.forEach(({ name, pattern }) => {
-          const matches = [...sailCode.matchAll(pattern)];
-          matches.forEach(match => {
-            if (!match[0].includes('altText:')) {
-              const line = sailCode.substring(0, match.index).split('\n').length;
-              issues.push({
-                rule: `Missing alt text on ${name}`,
-                message: rule.criteria,
-                code: match[0].substring(0, 80),
-                line: line,
-                severity: 'error',
-                wcagLevel: 'A',
-                wcagCriteria: '1.1.1',
-                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
-              });
+        const components = ['a!image(', 'a!imageField(', 'a!richTextIcon('];
+        
+        lines.forEach((line, idx) => {
+          components.forEach(comp => {
+            if (line.includes(comp)) {
+              const compName = comp.replace('a!', '').replace('(', '');
+              // Look ahead up to 5 lines for altText
+              let hasAltText = false;
+              for (let i = idx; i < Math.min(idx + 5, lines.length); i++) {
+                if (lines[i].includes('altText:')) hasAltText = true;
+                if (lines[i].includes(')') && i > idx) break;
+              }
+              
+              if (!hasAltText) {
+                issues.push({
+                  rule: `Missing alt text on ${compName}`,
+                  message: rule.criteria,
+                  code: line.trim().substring(0, 80),
+                  line: idx + 1,
+                  severity: 'error',
+                  wcagLevel: 'A',
+                  wcagCriteria: '1.1.1',
+                  learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+                });
+              }
             }
           });
         });
@@ -1013,28 +1019,33 @@ class AuroraRuleParser {
     return {
       execute: (sailCode) => {
         const issues = [];
-        const patterns = [
-          { name: 'sectionLayout', pattern: /a!sectionLayout\s*\([\s\S]*?\n\s*\)/g },
-          { name: 'boxLayout', pattern: /a!boxLayout\s*\([\s\S]*?\n\s*\)/g },
-        ];
+        const lines = sailCode.split('\n');
         
-        patterns.forEach(({ name, pattern }) => {
-          const matches = [...sailCode.matchAll(pattern)];
-          matches.forEach(match => {
-            if (match[0].includes('label:') && !match[0].includes('headingTag:')) {
-              const line = sailCode.substring(0, match.index).split('\n').length;
+        lines.forEach((line, idx) => {
+          if (line.includes('a!sectionLayout(') || line.includes('a!boxLayout(')) {
+            const componentName = line.includes('a!sectionLayout') ? 'sectionLayout' : 'boxLayout';
+            // Look ahead up to 10 lines for label and headingTag
+            let hasLabel = false;
+            let hasHeadingTag = false;
+            for (let i = idx; i < Math.min(idx + 10, lines.length); i++) {
+              if (lines[i].includes('label:')) hasLabel = true;
+              if (lines[i].includes('headingTag:')) hasHeadingTag = true;
+              if (lines[i].includes(')') && i > idx) break; // End of component
+            }
+            
+            if (hasLabel && !hasHeadingTag) {
               issues.push({
-                rule: `${name} missing heading tag`,
+                rule: `${componentName} missing heading tag`,
                 message: rule.criteria,
-                code: match[0].substring(0, 80),
-                line: line,
+                code: line.trim().substring(0, 80),
+                line: idx + 1,
                 severity: 'warning',
                 wcagLevel: 'AA',
                 wcagCriteria: '1.3.1',
                 learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
               });
             }
-          });
+          }
         });
         
         return issues;
@@ -1074,22 +1085,29 @@ class AuroraRuleParser {
     return {
       execute: (sailCode) => {
         const issues = [];
-        const pattern = /a!fileUploadField\s*\([^)]*\)/g;
-        const matches = [...sailCode.matchAll(pattern)];
+        const lines = sailCode.split('\n');
         
-        matches.forEach(match => {
-          if (!match[0].includes('label:')) {
-            const line = sailCode.substring(0, match.index).split('\n').length;
-            issues.push({
-              rule: 'File upload missing label',
-              message: rule.criteria,
-              code: match[0].substring(0, 80),
-              line: line,
-              severity: 'error',
-              wcagLevel: 'A',
-              wcagCriteria: '1.3.1, 4.1.2',
-              learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
-            });
+        lines.forEach((line, idx) => {
+          if (line.includes('a!fileUploadField(')) {
+            // Look ahead up to 5 lines for label
+            let hasLabel = false;
+            for (let i = idx; i < Math.min(idx + 5, lines.length); i++) {
+              if (lines[i].includes('label:')) hasLabel = true;
+              if (lines[i].includes(')') && i > idx) break;
+            }
+            
+            if (!hasLabel) {
+              issues.push({
+                rule: 'File upload missing label',
+                message: rule.criteria,
+                code: line.trim().substring(0, 80),
+                line: idx + 1,
+                severity: 'error',
+                wcagLevel: 'A',
+                wcagCriteria: '1.3.1, 4.1.2',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
           }
         });
         
