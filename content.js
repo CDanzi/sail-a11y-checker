@@ -644,10 +644,11 @@ class AuroraRuleParser {
     
     // Rule 1: Check for label parameter on form inputs (SPECIFIC to form inputs only)
     if (category === 'form inputs' && 
-        (sailTest.includes('inspect the label parameter') || sailTest.includes('label must not be null')) &&
+        sailTest.includes('inspect the label parameter') &&
+        !sailTest.includes('same string') &&
+        !sailTest.includes('visible label') &&
         !sailTest.includes('checkbox') && !sailTest.includes('radio') && 
-        !sailTest.includes('grid') && !sailTest.includes('visible label') &&
-        !sailTest.includes('same string')) {
+        !sailTest.includes('grid') && !sailTest.includes('collapsed')) {
       checks.push(this.createLabelCheck(rule));
     }
     
