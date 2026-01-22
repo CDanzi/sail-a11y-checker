@@ -79,6 +79,150 @@ function checkA11yIssues(sailCode, auroraRules = []) {
   const lines = sailCode.split('\n');
   let usedFallbackRules = false;
   
+  // Try to use Aurora rules first
+  if (auroraRules && auroraRules.length > 0) {
+    console.log(`✅ Using ${auroraRules.length} Aurora rules for dynamic checking`);
+    try {
+      // Load and use Aurora rule parser
+      const parser = new AuroraRuleParser(auroraRules);
+      issues = parser.generateChecks(sailCode);
+      console.log(`Found ${issues.length} issues using Aurora rules`);
+      
+      // Supplement with hardcoded checks for multi-line edge cases
+      const supplementalIssues = runSupplementalChecks(sailCode, lines);
+      console.log(`Found ${supplementalIssues.length} additional issues from supplemental checks`);
+      
+      // Merge and deduplicate
+      supplementalIssues.forEach(newIssue => {
+        const isDuplicate = issues.some(existing => 
+          existing.line === newIssue.line && existing.rule === newIssue.rule
+        );
+        if (!isDuplicate) {
+          issues.push(newIssue);
+        }
+      });
+      
+      return { issues, usedFallbackRules: false };
+    } catch (error) {
+      console.error('❌ Error using Aurora rules, falling back to hardcoded:', error);
+      usedFallbackRules = true;
+    }
+  } else {
+    console.log('⚠️ No Aurora rules available, using fallback checks');
+    usedFallbackRules = true;
+  }
+  
+  // Fallback to hardcoded rules
+  console.log('Using hardcoded fallback rules');
+  issues = runHardcodedChecks(sailCode, lines);
+  
+  return { issues, usedFallbackRules };
+}
+
+// Supplemental checks for edge cases Aurora parser misses
+function runSupplementalChecks(sailCode, lines) {
+  const issues = [];
+  
+  // Check for imageField/image missing altText (multi-line)
+  lines.forEach((line, idx) => {
+    if (line.trim().match(/^a!image(Field)?\s*\(/)) {
+      let hasAltText = false;
+      let depth = 0;
+      for (let i = idx; i < Math.min(idx + 10, lines.length); i++) {
+        const l = lines[i];
+        depth += (l.match(/\(/g) || []).length - (l.match(/\)/g) || []).length;
+        if (l.includes('altText:')) hasAltText = true;
+        if (depth <= 0 && i > idx) break;
+      }
+      if (!hasAltText) {
+        issues.push({
+          rule: 'Missing alt text on image',
+          message: 'Images and icons MUST have alternative text set via the altText parameter.',
+          code: line.trim().substring(0, 80),
+          line: idx + 1,
+          severity: 'error',
+          wcagLevel: 'A',
+          wcagCriteria: '1.1.1'
+        });
+      }
+    }
+  });
+  
+  // Check for fileUploadField missing label (multi-line)
+  lines.forEach((line, idx) => {
+    if (line.trim().match(/^a!fileUploadField\s*\(/)) {
+      let hasLabel = false;
+      let depth = 0;
+      for (let i = idx; i < Math.min(idx + 10, lines.length); i++) {
+        const l = lines[i];
+        depth += (l.match(/\(/g) || []).length - (l.match(/\)/g) || []).length;
+        if (l.includes('label:')) hasLabel = true;
+        if (depth <= 0 && i > idx) break;
+      }
+      if (!hasLabel) {
+        issues.push({
+          rule: 'File upload missing label',
+          message: 'Every file upload field MUST have a label parameter.',
+          code: line.trim().substring(0, 80),
+          line: idx + 1,
+          severity: 'error',
+          wcagLevel: 'A',
+          wcagCriteria: '1.3.1, 4.1.2'
+        });
+      }
+    }
+  });
+  
+  // Check for section/box layouts missing headingTag (multi-line)
+  lines.forEach((line, idx) => {
+    if (line.trim().match(/^a!(section|box)Layout\s*\(/)) {
+      const layoutType = line.includes('section') ? 'sectionLayout' : 'boxLayout';
+      let hasLabel = false;
+      let hasHeadingTag = false;
+      let depth = 0;
+      for (let i = idx; i < Math.min(idx + 15, lines.length); i++) {
+        const l = lines[i];
+        depth += (l.match(/\(/g) || []).length - (l.match(/\)/g) || []).length;
+        if (l.includes('label:')) hasLabel = true;
+        if (l.includes('headingTag:') || l.includes('labelHeadingTag:')) hasHeadingTag = true;
+        if (depth <= 0 && i > idx) break;
+      }
+      if (hasLabel && !hasHeadingTag) {
+        issues.push({
+          rule: `${layoutType} missing heading tag`,
+          message: 'Sections with labels MUST have a headingTag parameter set.',
+          code: line.trim().substring(0, 80),
+          line: idx + 1,
+          severity: 'warning',
+          wcagLevel: 'AA',
+          wcagCriteria: '1.3.1'
+        });
+      }
+    }
+  });
+  
+  // Check for prohibited dateTimeField
+  lines.forEach((line, idx) => {
+    if (line.includes('a!dateTimeField(')) {
+      issues.push({
+        rule: 'Prohibited component: dateTimeField',
+        message: 'dateTimeField is not accessible and should not be used.',
+        code: line.trim().substring(0, 80),
+        line: idx + 1,
+        severity: 'error',
+        wcagLevel: 'A',
+        wcagCriteria: '4.1.2'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// Hardcoded fallback checks (original logic)
+function runHardcodedChecks(sailCode, lines) {
+  const issues = [];
+  
   const findLineNumber = (charIndex) => {
     let charCount = 0;
     for (let i = 0; i < lines.length; i++) {
@@ -577,7 +721,803 @@ function checkA11yIssues(sailCode, auroraRules = []) {
     });
   }
   
-  return { issues, usedFallbackRules };
+  return issues;
+}
+
+// Aurora Rule Parser class (inline for extension compatibility)
+class AuroraRuleParser {
+  constructor(auroraRules) {
+    this.rules = auroraRules || [];
+  }
+
+  generateChecks(sailCode) {
+    const issues = [];
+    
+    console.log(`🔍 Aurora Parser: Processing ${this.rules.length} rules...`);
+    
+    this.rules.forEach(rule => {
+      const checks = this.parseRuleToChecks(rule);
+      checks.forEach(check => {
+        const violations = check.execute(sailCode);
+        if (violations.length > 0) {
+          console.log(`  ✓ Found ${violations.length} issues for: ${rule.category}`);
+        }
+        issues.push(...violations);
+      });
+    });
+    
+    console.log(`🎯 Aurora Parser: Total ${issues.length} issues found`);
+    
+    return issues;
+  }
+
+  parseRuleToChecks(rule) {
+    const checks = [];
+    const sailTest = rule.sailTest?.toLowerCase() || '';
+    const category = rule.category?.toLowerCase() || '';
+    const criteria = rule.criteria?.toLowerCase() || '';
+    
+    // Rule 1: Check for label parameter on form inputs (SPECIFIC to form inputs only)
+    if (category === 'form inputs' && 
+        sailTest.includes('inspect the label parameter') &&
+        !sailTest.includes('same string') &&
+        !sailTest.includes('visible label') &&
+        !sailTest.includes('checkbox') && !sailTest.includes('radio') && 
+        !sailTest.includes('grid') && !sailTest.includes('collapsed')) {
+      checks.push(this.createLabelCheck(rule));
+    }
+    
+    // Rule 2: Check for choice labels on checkbox/radio (SPECIFIC)
+    if (category === 'form inputs' && 
+        (sailTest.includes('choicelabels') || criteria.includes('choicelabels')) &&
+        (criteria.includes('checkbox') || criteria.includes('radio'))) {
+      checks.push(this.createChoiceLabelsCheck(rule));
+    }
+    
+    // Rule 3: Check for group labels on multiple choice fields (SPECIFIC)
+    if (category === 'form inputs' && 
+        (criteria.includes('checkbox') || criteria.includes('radio')) &&
+        (criteria.includes('more than one') || criteria.includes('group')) && 
+        sailTest.includes('label')) {
+      checks.push(this.createGroupLabelCheck(rule));
+    }
+    
+    // Rule 4: Check for alt text on images (SPECIFIC)
+    if (category === 'images' && (sailTest.includes('alttext') || sailTest.includes('alt text'))) {
+      checks.push(this.createAltTextCheck(rule));
+    }
+    
+    // Rule 5: Check for alt text on icons (SPECIFIC)
+    if (category === 'icons' && (sailTest.includes('alttext') || sailTest.includes('alt text'))) {
+      checks.push(this.createAltTextCheck(rule));
+    }
+    
+    // Rule 6: Check for grid labels (SPECIFIC - must mention "grid")
+    if (category === 'grids' && criteria.includes('grid must have a label') && 
+        !criteria.includes('column')) {
+      checks.push(this.createGridLabelCheck(rule));
+    }
+    
+    // Rule 7: Check for grid column headers (SPECIFIC - must mention "column" and NOT "spacing")
+    if (category === 'grids' && criteria.includes('column') && 
+        criteria.includes('header') && !criteria.includes('spacing')) {
+      checks.push(this.createGridColumnCheck(rule));
+    }
+    
+    // Rule 8: Check for semantic headings (SPECIFIC)
+    if (category === 'headings' && criteria.includes('heading') && 
+        !criteria.includes('section') && !criteria.includes('box')) {
+      checks.push(this.createHeadingCheck(rule));
+    }
+    
+    // Rule 9: Check for section heading tags (SPECIFIC)
+    if (category === 'sections' && sailTest.includes('heading')) {
+      checks.push(this.createSectionHeadingCheck(rule));
+    }
+    
+    // Rule 10: Check for progress bar labels (SPECIFIC)
+    if (category === 'progress indicators' || criteria.includes('progress')) {
+      checks.push(this.createProgressBarCheck(rule));
+    }
+    
+    // Rule 11: Check for file upload labels (SPECIFIC)
+    if (category === 'form inputs' && criteria.includes('file upload')) {
+      checks.push(this.createFileUploadCheck(rule));
+    }
+    
+    // Rule 12: Check for card accessibility text (SPECIFIC)
+    if (category === 'cards' && sailTest.includes('accessibility')) {
+      checks.push(this.createCardAccessibilityCheck(rule));
+    }
+    
+    // Rule 13: Check for prohibited components (SPECIFIC - case insensitive)
+    if (criteria.toLowerCase().includes('datetimefield') && criteria.toLowerCase().includes('must not')) {
+      checks.push(this.createProhibitedComponentCheck(rule));
+    }
+    
+    // Rule 14: Check for duplicate control context (SPECIFIC)
+    if (category === 'form inputs' && criteria.includes('duplicated controls') && 
+        sailTest.includes('accessibilitytext')) {
+      checks.push(this.createDuplicateControlCheck(rule));
+    }
+    
+    // Rule 15: Check for required field indicators (SPECIFIC)
+    if (category === 'form inputs' && criteria.includes('required') && 
+        !criteria.includes('duplicate')) {
+      checks.push(this.createRequiredFieldCheck(rule));
+    }
+    
+    // Rule 16: Check for link labels (SPECIFIC)
+    if (category === 'links' && sailTest.includes('label')) {
+      checks.push(this.createLinkLabelCheck(rule));
+    }
+    
+    // Rule 17: Check for button labels (SPECIFIC)
+    if (criteria.includes('button') && sailTest.includes('label')) {
+      checks.push(this.createButtonLabelCheck(rule));
+    }
+    
+    // Rule 18: Check for chart accessibility (SPECIFIC)
+    if (category === 'charts' || criteria.includes('chart')) {
+      checks.push(this.createChartAccessibilityCheck(rule));
+    }
+    
+    // Rule 19: Check for picker field labels (SPECIFIC)
+    if (criteria.includes('picker') && sailTest.includes('label')) {
+      checks.push(this.createPickerFieldCheck(rule));
+    }
+    
+    // Rule 20: Check for collapsible section headings (SPECIFIC)
+    if (category === 'sections' && criteria.includes('collapsible')) {
+      checks.push(this.createCollapsibleSectionCheck(rule));
+    }
+    
+    return checks;
+  }
+
+  createLabelCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const formPatterns = [
+          { name: 'textField', pattern: /a!textField\s*\([^)]*\)/g },
+          { name: 'integerField', pattern: /a!integerField\s*\([^)]*\)/g },
+          { name: 'decimalField', pattern: /a!decimalField\s*\([^)]*\)/g },
+          { name: 'dateField', pattern: /a!dateField\s*\([^)]*\)/g },
+          { name: 'dropdownField', pattern: /a!dropdownField\s*\([^)]*\)/g },
+          { name: 'paragraphField', pattern: /a!paragraphField\s*\([^)]*\)/g },
+        ];
+        
+        formPatterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            if (!match[0].includes('label:')) {
+              const line = sailCode.substring(0, match.index).split('\n').length;
+              issues.push({
+                rule: `Missing label on ${name}`,
+                message: rule.criteria,
+                code: match[0].substring(0, 80),
+                line: line,
+                severity: 'error',
+                wcagLevel: 'A',
+                wcagCriteria: '1.3.1, 4.1.2',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createChoiceLabelsCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const patterns = [
+          { name: 'checkboxField', pattern: /a!checkboxField\s*\([^)]*\)/g },
+          { name: 'radioButtonField', pattern: /a!radioButtonField\s*\([^)]*\)/g },
+        ];
+        
+        patterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            if (!match[0].includes('choiceLabels:')) {
+              const line = sailCode.substring(0, match.index).split('\n').length;
+              issues.push({
+                rule: `Missing choice labels on ${name}`,
+                message: rule.criteria,
+                code: match[0].substring(0, 80),
+                line: line,
+                severity: 'error',
+                wcagLevel: 'A',
+                wcagCriteria: '1.3.1, 4.1.2',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createAltTextCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const lines = sailCode.split('\n');
+        
+        const components = ['a!image(', 'a!imageField(', 'a!richTextIcon('];
+        
+        lines.forEach((line, idx) => {
+          components.forEach(comp => {
+            if (line.includes(comp)) {
+              const compName = comp.replace('a!', '').replace('(', '');
+              // Look ahead up to 5 lines for altText
+              let hasAltText = false;
+              for (let i = idx; i < Math.min(idx + 5, lines.length); i++) {
+                if (lines[i].includes('altText:')) hasAltText = true;
+                if (lines[i].includes(')') && i > idx) break;
+              }
+              
+              if (!hasAltText) {
+                issues.push({
+                  rule: `Missing alt text on ${compName}`,
+                  message: rule.criteria,
+                  code: line.trim().substring(0, 80),
+                  line: idx + 1,
+                  severity: 'error',
+                  wcagLevel: 'A',
+                  wcagCriteria: '1.1.1',
+                  learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+                });
+              }
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createGroupLabelCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const patterns = [
+          { name: 'checkboxField', pattern: /a!checkboxField\s*\([^)]*\)/g },
+          { name: 'radioButtonField', pattern: /a!radioButtonField\s*\([^)]*\)/g },
+        ];
+        
+        patterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            // Check if has multiple choices (contains array with commas)
+            if (match[0].includes('choiceLabels:') && match[0].includes(',')) {
+              if (!match[0].includes('label:')) {
+                const line = sailCode.substring(0, match.index).split('\n').length;
+                issues.push({
+                  rule: `${name} group missing label`,
+                  message: rule.criteria,
+                  code: match[0].substring(0, 80),
+                  line: line,
+                  severity: 'error',
+                  wcagLevel: 'A',
+                  wcagCriteria: '1.3.1',
+                  learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+                });
+              }
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createGridLabelCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const pattern = /a!gridField\s*\([^)]*\)/g;
+        const matches = [...sailCode.matchAll(pattern)];
+        
+        matches.forEach(match => {
+          if (!match[0].includes('label:')) {
+            const line = sailCode.substring(0, match.index).split('\n').length;
+            issues.push({
+              rule: 'Grid missing label',
+              message: rule.criteria,
+              code: match[0].substring(0, 80),
+              line: line,
+              severity: 'warning',
+              wcagLevel: 'AA',
+              wcagCriteria: '2.4.6',
+              learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+            });
+          }
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createGridColumnCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const pattern = /a!gridField\s*\([^)]*columns\s*:\s*\{[^}]*\}/g;
+        const matches = [...sailCode.matchAll(pattern)];
+        
+        matches.forEach(match => {
+          const columnsMatch = match[0].match(/columns\s*:\s*\{([^}]*)\}/);
+          if (columnsMatch && !columnsMatch[1].includes('label:')) {
+            const line = sailCode.substring(0, match.index).split('\n').length;
+            issues.push({
+              rule: 'Grid column missing header',
+              message: rule.criteria,
+              code: match[0].substring(0, 80),
+              line: line,
+              severity: 'warning',
+              wcagLevel: 'AA',
+              wcagCriteria: '1.3.1',
+              learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+            });
+          }
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createHeadingCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        
+        // Pattern 1: richTextDisplayField with LARGE/MEDIUM_PLUS text
+        const displayFieldPattern = /a!richTextDisplayField\s*\([^)]*value\s*:\s*a!richTextItem\s*\([^)]*text\s*:\s*"[^"]*"[^)]*size\s*:\s*"(LARGE|MEDIUM_PLUS)"/g;
+        const displayMatches = [...sailCode.matchAll(displayFieldPattern)];
+        
+        displayMatches.forEach(match => {
+          if (!match[0].includes('headingTag:')) {
+            const line = sailCode.substring(0, match.index).split('\n').length;
+            issues.push({
+              rule: 'Large text missing heading tag',
+              message: rule.criteria,
+              code: match[0].substring(0, 80),
+              line: line,
+              severity: 'warning',
+              wcagLevel: 'AA',
+              wcagCriteria: '1.3.1',
+              learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+            });
+          }
+        });
+        
+        // Pattern 2: richTextItem with LARGE size (standalone)
+        const itemPattern = /a!richTextItem\s*\([^)]*size:\s*"LARGE"[^)]*\)/g;
+        const itemMatches = [...sailCode.matchAll(itemPattern)];
+        
+        itemMatches.forEach(match => {
+          // Check if this richTextItem is NOT already caught by displayFieldPattern
+          const beforeText = sailCode.substring(Math.max(0, match.index - 200), match.index);
+          if (!beforeText.includes('a!richTextDisplayField') || !match[0].includes('headingTag')) {
+            const line = sailCode.substring(0, match.index).split('\n').length;
+            issues.push({
+              rule: 'Large text should use semantic heading',
+              message: rule.criteria,
+              code: match[0].substring(0, 80),
+              line: line,
+              severity: 'warning',
+              wcagLevel: 'AA',
+              wcagCriteria: '1.3.1',
+              learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+            });
+          }
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createSectionHeadingCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const lines = sailCode.split('\n');
+        
+        lines.forEach((line, idx) => {
+          if (line.includes('a!sectionLayout(') || line.includes('a!boxLayout(')) {
+            const componentName = line.includes('a!sectionLayout') ? 'sectionLayout' : 'boxLayout';
+            // Look ahead up to 10 lines for label and headingTag
+            let hasLabel = false;
+            let hasHeadingTag = false;
+            for (let i = idx; i < Math.min(idx + 10, lines.length); i++) {
+              if (lines[i].includes('label:')) hasLabel = true;
+              if (lines[i].includes('headingTag:')) hasHeadingTag = true;
+              if (lines[i].includes(')') && i > idx) break; // End of component
+            }
+            
+            if (hasLabel && !hasHeadingTag) {
+              issues.push({
+                rule: `${componentName} missing heading tag`,
+                message: rule.criteria,
+                code: line.trim().substring(0, 80),
+                line: idx + 1,
+                severity: 'warning',
+                wcagLevel: 'AA',
+                wcagCriteria: '1.3.1',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          }
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createProgressBarCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const pattern = /a!progressBarField\s*\([^)]*\)/g;
+        const matches = [...sailCode.matchAll(pattern)];
+        
+        matches.forEach(match => {
+          if (!match[0].includes('label:')) {
+            const line = sailCode.substring(0, match.index).split('\n').length;
+            issues.push({
+              rule: 'Progress bar missing label',
+              message: rule.criteria,
+              code: match[0].substring(0, 80),
+              line: line,
+              severity: 'warning',
+              wcagLevel: 'AA',
+              wcagCriteria: '2.4.6',
+              learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+            });
+          }
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createFileUploadCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const lines = sailCode.split('\n');
+        
+        lines.forEach((line, idx) => {
+          if (line.includes('a!fileUploadField(')) {
+            // Look ahead up to 5 lines for label
+            let hasLabel = false;
+            for (let i = idx; i < Math.min(idx + 5, lines.length); i++) {
+              if (lines[i].includes('label:')) hasLabel = true;
+              if (lines[i].includes(')') && i > idx) break;
+            }
+            
+            if (!hasLabel) {
+              issues.push({
+                rule: 'File upload missing label',
+                message: rule.criteria,
+                code: line.trim().substring(0, 80),
+                line: idx + 1,
+                severity: 'error',
+                wcagLevel: 'A',
+                wcagCriteria: '1.3.1, 4.1.2',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          }
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createCardAccessibilityCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const pattern = /a!cardLayout\s*\([^)]*\)/g;
+        const matches = [...sailCode.matchAll(pattern)];
+        
+        matches.forEach(match => {
+          // Check if card uses conditional styling (likely for selection)
+          if ((match[0].includes('showBorder:') && match[0].includes('if(')) ||
+              (match[0].includes('style:') && match[0].includes('if('))) {
+            if (!match[0].includes('accessibilityText:')) {
+              const line = sailCode.substring(0, match.index).split('\n').length;
+              issues.push({
+                rule: 'Selected card missing accessibility text',
+                message: rule.criteria,
+                code: match[0].substring(0, 80),
+                line: line,
+                severity: 'warning',
+                wcagLevel: 'AA',
+                wcagCriteria: '4.1.2',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          }
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createProhibitedComponentCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        // Check for prohibited dateTimeField
+        const pattern = /a!dateTimeField\s*\(/g;
+        const matches = [...sailCode.matchAll(pattern)];
+        
+        matches.forEach(match => {
+          const line = sailCode.substring(0, match.index).split('\n').length;
+          issues.push({
+            rule: 'Prohibited component: dateTimeField',
+            message: rule.criteria || 'dateTimeField is not accessible and should not be used',
+            code: match[0].substring(0, 80),
+            line: line,
+            severity: 'error',
+            wcagLevel: 'A',
+            wcagCriteria: '4.1.2',
+            learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createDuplicateControlCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const formPattern = /a!(textField|integerField|decimalField|dropdownField)\s*\([^)]*\)/g;
+        const matches = [...sailCode.matchAll(formPattern)];
+        
+        // Group by label to find duplicates
+        const labelGroups = {};
+        matches.forEach(match => {
+          const labelMatch = match[0].match(/label\s*:\s*"([^"]*)"/);
+          if (labelMatch) {
+            const label = labelMatch[1];
+            if (!labelGroups[label]) labelGroups[label] = [];
+            labelGroups[label].push(match);
+          }
+        });
+        
+        // Check duplicates for accessibilityText
+        Object.entries(labelGroups).forEach(([label, group]) => {
+          if (group.length > 1) {
+            group.forEach(match => {
+              if (!match[0].includes('accessibilityText:')) {
+                const line = sailCode.substring(0, match.index).split('\n').length;
+                issues.push({
+                  rule: 'Duplicate control missing accessibility text',
+                  message: rule.criteria,
+                  code: match[0].substring(0, 80),
+                  line: line,
+                  severity: 'error',
+                  wcagLevel: 'A',
+                  wcagCriteria: '2.4.6',
+                  learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+                });
+              }
+            });
+          }
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createRequiredFieldCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const formPatterns = [
+          { name: 'textField', pattern: /a!textField\s*\([^)]*\)/g },
+          { name: 'dropdownField', pattern: /a!dropdownField\s*\([^)]*\)/g },
+        ];
+        
+        formPatterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            if (match[0].includes('required:') && !match[0].includes('required: true') && 
+                !match[0].includes('required: false')) {
+              const line = sailCode.substring(0, match.index).split('\n').length;
+              issues.push({
+                rule: `${name} missing required parameter`,
+                message: rule.criteria,
+                code: match[0].substring(0, 80),
+                line: line,
+                severity: 'warning',
+                wcagLevel: 'AA',
+                wcagCriteria: '3.3.2',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createLinkLabelCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const pattern = /a!linkField\s*\([^)]*\)/g;
+        const matches = [...sailCode.matchAll(pattern)];
+        
+        matches.forEach(match => {
+          if (!match[0].includes('label:') && !match[0].includes('accessibilityText:')) {
+            const line = sailCode.substring(0, match.index).split('\n').length;
+            issues.push({
+              rule: 'Link missing label',
+              message: rule.criteria,
+              code: match[0].substring(0, 80),
+              line: line,
+              severity: 'error',
+              wcagLevel: 'A',
+              wcagCriteria: '2.4.4, 4.1.2',
+              learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+            });
+          }
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createButtonLabelCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const patterns = [
+          { name: 'buttonWidget', pattern: /a!buttonWidget\s*\([^)]*\)/g },
+          { name: 'buttonArrayLayout', pattern: /a!buttonArrayLayout\s*\([^)]*\)/g },
+        ];
+        
+        patterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            if (!match[0].includes('label:')) {
+              const line = sailCode.substring(0, match.index).split('\n').length;
+              issues.push({
+                rule: `${name} missing label`,
+                message: rule.criteria,
+                code: match[0].substring(0, 80),
+                line: line,
+                severity: 'error',
+                wcagLevel: 'A',
+                wcagCriteria: '4.1.2',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createChartAccessibilityCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const patterns = [
+          { name: 'barChartField', pattern: /a!barChartField\s*\([^)]*\)/g },
+          { name: 'columnChartField', pattern: /a!columnChartField\s*\([^)]*\)/g },
+          { name: 'lineChartField', pattern: /a!lineChartField\s*\([^)]*\)/g },
+          { name: 'pieChartField', pattern: /a!pieChartField\s*\([^)]*\)/g },
+        ];
+        
+        patterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            if (!match[0].includes('accessibilityText:')) {
+              const line = sailCode.substring(0, match.index).split('\n').length;
+              issues.push({
+                rule: `${name} missing accessibility text`,
+                message: rule.criteria,
+                code: match[0].substring(0, 80),
+                line: line,
+                severity: 'error',
+                wcagLevel: 'A',
+                wcagCriteria: '1.1.1',
+                learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+              });
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createPickerFieldCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const pattern = /a!pickerField\s*\([^)]*\)/g;
+        const matches = [...sailCode.matchAll(pattern)];
+        
+        matches.forEach(match => {
+          if (!match[0].includes('label:')) {
+            const line = sailCode.substring(0, match.index).split('\n').length;
+            issues.push({
+              rule: 'Picker field missing label',
+              message: rule.criteria,
+              code: match[0].substring(0, 80),
+              line: line,
+              severity: 'error',
+              wcagLevel: 'A',
+              wcagCriteria: '1.3.1, 4.1.2',
+              learnMoreUrl: 'https://appian-design.github.io/aurora/accessibility/checklist/'
+            });
+          }
+        });
+        
+        return issues;
+      }
+    };
+  }
+
+  createCollapsibleSectionCheck(rule) {
+    return {
+      execute: (sailCode) => {
+        const issues = [];
+        const patterns = [
+          { name: 'sectionLayout', pattern: /a!sectionLayout\s*\([^)]*isCollapsible\s*:\s*true[^)]*\)/g },
+          { name: 'boxLayout', pattern: /a!boxLayout\s*\([^)]*isCollapsible\s*:\s*true[^)]*\)/g },
+        ];
+        
+        patterns.forEach(({ name, pattern }) => {
+          const matches = [...sailCode.matchAll(pattern)];
+          matches.forEach(match => {
+            // Only flag if it has a label AND is collapsible AND missing headingTag
+            // This is more specific than the general section heading check
+            if (match[0].includes('label:') && !match[0].includes('headingTag:')) {
+              // Skip - this will be caught by createSectionHeadingCheck
+              // The collapsible check is redundant with the section heading check
+              return;
+            }
+          });
+        });
+        
+        return issues;
+      }
+    };
+  }
 }
 
 // Listen for messages from popup
