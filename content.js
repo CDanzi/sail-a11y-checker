@@ -216,6 +216,33 @@ function runSupplementalChecks(sailCode, lines) {
     }
   });
   
+  // Check for cardChoiceField with multiple cards missing label
+  lines.forEach((line, idx) => {
+    if (line.trim().match(/^a!cardChoiceField\s*\(/)) {
+      let hasLabel = false;
+      let hasData = false;
+      let depth = 0;
+      for (let i = idx; i < Math.min(idx + 20, lines.length); i++) {
+        const l = lines[i];
+        depth += (l.match(/\(/g) || []).length - (l.match(/\)/g) || []).length;
+        if (l.includes('label:')) hasLabel = true;
+        if (l.includes('data:')) hasData = true;
+        if (depth <= 0 && i > idx) break;
+      }
+      if (hasData && !hasLabel) {
+        issues.push({
+          rule: 'cardChoiceField missing label',
+          message: 'Card choice fields with more than one card MUST have a label.',
+          code: line.trim().substring(0, 80),
+          line: idx + 1,
+          severity: 'warning',
+          wcagLevel: 'AA',
+          wcagCriteria: '1.3.1'
+        });
+      }
+    }
+  });
+  
   return issues;
 }
 

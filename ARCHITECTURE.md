@@ -22,6 +22,7 @@ runSupplementalChecks(sailCode, lines)
   - imageField/image missing altText
   - fileUploadField missing label
   - section/boxLayout missing headingTag
+  - cardChoiceField missing label
   - Prohibited dateTimeField
   ↓
 Merge & deduplicate
